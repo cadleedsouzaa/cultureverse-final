@@ -75,3 +75,35 @@
     @apply bg-background text-foreground transition-colors duration-300;
   }
 }
+/* HIDE GOOGLE TRANSLATE TOOLBAR */
+.goog-te-banner-frame.skiptranslate {
+    display: none !important;
+}
+
+body {
+    top: 0px !important; 
+}
+
+/* Hide the specific Google tooltip that appears on hover */
+.goog-tooltip {
+    display: none !important;
+}
+
+.goog-tooltip:hover {
+    display: none !important;
+}
+
+.goog-text-highlight {
+    background-color: transparent !important;
+    border: none !important; 
+    box-shadow: none !important;
+}
+
+/* Hide the footer branding */
+.goog-logo-link {
+    display: none !important;
+}
+
+.goog-te-gadget {
+    color: transparent !important;
+}

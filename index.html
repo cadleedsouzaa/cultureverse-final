@@ -1,14 +1,37 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hello world project</title>
-  </head>
 
-  <body>
-    <div id="root"></div>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.ico" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CultureVerse Lens</title>
+</head>
 
-    <script type="module" src="/client/main.tsx"></script>
-  </body>
+<body>
+  <div id="root"></div>
+
+  <!-- 1. ADD THIS HIDDEN DIV -->
+  <div id="google_translate_element" style="display:none"></div>
+
+  <!-- 2. ADD THIS SCRIPT -->
+  <script type="text/javascript">
+    function googleTranslateElementInit() {
+      new google.translate.TranslateElement(
+        {
+          pageLanguage: 'en',
+          // LIST OF LANGUAGES YOU WANT (Here are 20 Indian + Global languages)
+          includedLanguages: 'en,hi,kn,ta,te,ml,bn,gu,mr,pa,ur,or,as,sa,fr,es,de,ja,zh-CN,ar',
+          autoDisplay: false,
+        },
+        'google_translate_element'
+      );
+    }
+  </script>
+  <script type="text/javascript"
+    src="//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+
+  <script type="module" src="/client/main.tsx"></script>
+</body>
+
 </html>

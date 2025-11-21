@@ -1,17 +1,21 @@
-
 import { useState, useRef, useEffect, ChangeEvent, Suspense } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Eye, Archive, Camera, Image as ImageIcon, X, ArrowRight, Loader2, RefreshCw, Repeat, AlertCircle } from "lucide-react";
+import { Sparkles, Eye, Archive, Camera, Image as ImageIcon, X, ArrowRight, Loader2, Repeat } from "lucide-react";
 import Webcam from "react-webcam";
 import { Canvas } from "@react-three/fiber";
 import { Stage, OrbitControls, Center, Environment } from "@react-three/drei";
 import { ThemeToggle } from "../components/ThemeToggle";
-import { useToast } from "@/components/ui/use-toast"; // Import Toast for feedback
+import { useToast } from "@/components/ui/use-toast";
+import { LanguageSwitcherNLP } from "../components/LanguageSwitcherNLP";
 
-// --- IMPORTS ---
+// SERVICES
 // @ts-ignore
 import { classifyImage } from "../services/aiScanner"; 
+import { getDescriptionForImage } from "../services/imageCaptioner";
+import { addToArchive } from "../lib/archiveStore";
+
+// MODELS
 // @ts-ignore
 import ChannapatnaToy from '../components/ui/AR/ChannapatnaToy';
 // @ts-ignore
@@ -24,22 +28,44 @@ import KolamArt from '../components/ui/AR/KolamArt';
 import MadhubaniArt from '../components/ui/AR/MadhubaniArt';
 import IndiaCultureMap from '../components/IndiaCultureMap';
 
+const Background = () => {
+  const divRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!divRef.current) return;
+      const x = e.clientX;
+      const y = e.clientY;
+      divRef.current.style.setProperty("--mouse-x", `${x}px`);
+      divRef.current.style.setProperty("--mouse-y", `${y}px`);
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+  return (
+    <div ref={divRef} className="fixed inset-0 -z-10 h-full w-full bg-background overflow-hidden transition-colors duration-500">
+      <div className="absolute h-full w-full bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      <div className="pointer-events-none absolute -inset-px opacity-0 transition-opacity duration-300 lg:opacity-100" style={{ background: `radial-gradient(600px circle at var(--mouse-x) var(--mouse-y), rgba(245, 158, 11, 0.15), transparent 40%)` }} />
+      <div className="absolute left-0 right-0 top-[-10%] m-auto h-[400px] w-[400px] rounded-full bg-amber-500/10 blur-[100px] animate-pulse dark:bg-indigo-500/10"></div>
+    </div>
+  );
+};
+
 export default function Index() {
   const navigate = useNavigate();
-  const { toast } = useToast(); // Initialize Toast
+  const { toast } = useToast();
 
-  // UI States
   const [showCamera, setShowCamera] = useState(false);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [detectedId, setDetectedId] = useState<string | null>(null);
+  const [analysisStatus, setAnalysisStatus] = useState("Analyzing...");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const webcamRef = useRef<Webcam>(null);
-  const scannerInterval = useRef<NodeJS.Timeout | null>(null);
+  // FIXED: Changed NodeJS.Timeout to any to prevent environment errors
+  const scannerInterval = useRef<any>(null);
 
-  // --- 1. CAMERA LOGIC ---
   const startScanning = () => {
     if (scannerInterval.current) clearInterval(scannerInterval.current);
     scannerInterval.current = setInterval(async () => {
@@ -53,10 +79,7 @@ export default function Index() {
                     // @ts-ignore
                     if (result && result !== 'unknown') {
                        setDetectedId(result);
-                       if (scannerInterval.current) {
-                           clearInterval(scannerInterval.current);
-                           scannerInterval.current = null;
-                       }
+                       if (scannerInterval.current) clearInterval(scannerInterval.current);
                     }
                 };
             }
@@ -64,23 +87,8 @@ export default function Index() {
     }, 500); 
   };
 
-  const stopAndReset = () => {
-    if (scannerInterval.current) clearInterval(scannerInterval.current);
-    setDetectedId(null);
-    setShowCamera(false);
-  };
-
-  const resetScanner = () => {
-    setDetectedId(null);
-    startScanning();
-  };
-
-  useEffect(() => {
-    if (showCamera) startScanning();
-    else stopAndReset();
-    return () => { if (scannerInterval.current) clearInterval(scannerInterval.current); };
-  }, [showCamera]);
-
+  useEffect(() => { if (showCamera) startScanning(); return () => { if (scannerInterval.current) clearInterval(scannerInterval.current); }; }, [showCamera]);
+  
   const renderARModel = () => {
     switch(detectedId) {
         case 'channapatna': return <ChannapatnaToy />;
@@ -92,59 +100,44 @@ export default function Index() {
     }
   };
 
-  // --- 2. UPLOAD LOGIC ---
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
+    if (file) { setSelectedImage(file); setPreviewUrl(URL.createObjectURL(file)); }
   };
+  const handleUploadClick = () => { if(fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
+  const clearSelection = () => { setSelectedImage(null); setPreviewUrl(null); setIsAnalyzing(false); setAnalysisStatus("Analyzing..."); };
 
-  const handleUploadClick = () => {
-    if(fileInputRef.current) {
-        fileInputRef.current.value = ''; 
-        fileInputRef.current.click();
-    }
-  };
-
-  const clearSelection = () => {
-    setSelectedImage(null);
-    setPreviewUrl(null);
-    setIsAnalyzing(false);
-  };
-
-  // --- UPDATED: STRICT IDENTIFICATION LOGIC ---
+  // --- MAIN UPLOAD LOGIC ---
   const handleIdentifyUpload = async () => {
     if (selectedImage && previewUrl) {
         setIsAnalyzing(true);
+        setAnalysisStatus("Scanning Patterns...");
+
         const img = document.createElement('img');
         img.src = previewUrl;
         img.onload = async () => {
             try {
                 let craftId = await classifyImage(img);
                 
-                // STRICT CHECK:
-                // If we found a VALID craft (not null, not 'unknown'), we go there.
-                // Otherwise, we stay here and show an error.
                 // @ts-ignore
                 if (craftId && craftId !== 'unknown') {
+                    // KNOWN: Go to result directly
                     navigate(`/result/${craftId}`);
                 } else {
-                    // STAY ON PAGE + SHOW ERROR
-                    toast({
-                        variant: "destructive",
-                        title: "Could not identify craft",
-                        description: "The image doesn't match our database. Please try a clearer photo.",
-                    });
-                }
+                    // UNKNOWN: Run Generative AI -> Save to Archive -> Go to Archive
+                    setAnalysisStatus("Generating Description...");
+                    
+                    // 1. Get Real Description from AI
+                    const realDescription = await getDescriptionForImage(previewUrl);
+                    
+                    // 2. Save to Archive
+                    await addToArchive('unknown', selectedImage, realDescription, "Unknown Location");
 
+                    toast({ title: "New Artifact Discovered", description: "Added to Archive for curation." });
+                    setTimeout(() => navigate('/archive'), 1500);
+                }
             } catch (e) {
-                toast({
-                    variant: "destructive",
-                    title: "Analysis Error",
-                    description: "Something went wrong while analyzing. Please try again.",
-                });
+                toast({ variant: "destructive", title: "Error", description: "Analysis failed." });
             } finally {
                 setIsAnalyzing(false);
             }
@@ -153,14 +146,17 @@ export default function Index() {
   };
 
   return (
-    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden transition-colors duration-500">
+    <div className="h-screen text-foreground flex flex-col overflow-hidden transition-colors duration-500 font-sans">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,800;1,400&display=swap'); .font-traditional { font-family: 'Playfair Display', serif; }`}</style>
+      <Background /> 
       <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" style={{ display: 'none' }} />
 
-      <header className="flex items-center justify-between px-8 py-3 border-b border-border/40 flex-shrink-0 bg-background/80 backdrop-blur-md z-20 relative">
-        <div className="text-lg font-semibold tracking-wide font-serif flex items-center gap-2">CultureVerse Lens</div>
+      <header className="flex items-center justify-between px-8 py-4 border-b border-border/40 flex-shrink-0 bg-background/50 backdrop-blur-md z-50 relative">
+        <div className="text-xl font-traditional font-bold tracking-wide flex items-center gap-2 text-foreground">CultureVerse Lens</div>
         <nav className="flex items-center gap-6 text-xs text-muted-foreground">
-         
-          <Link to="/archive" className="hover:text-primary transition-colors font-medium">Archive</Link>
+          <Link to="/" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Demo</Link>
+          <Link to="/archive" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Archive</Link>
+          <LanguageSwitcherNLP />
           <ThemeToggle />
         </nav>
       </header>
@@ -169,54 +165,53 @@ export default function Index() {
         {showCamera ? (
             <div className="relative w-full h-full bg-black overflow-hidden">
                 <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "environment" }} style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }} />
-                {!detectedId && <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none"><div className="mt-4 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2"><Loader2 className="w-4 h-4 text-amber-500 animate-spin" /><span className="text-white text-xs font-medium">Scanning Environment...</span></div></div>}
+                {!detectedId && <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none"><div className="mt-4 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2"><Loader2 className="w-4 h-4 text-amber-500 animate-spin" /><span className="text-white text-xs font-medium">Scanning...</span></div></div>}
                 {detectedId && <div className="absolute inset-0 z-20"><Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 5], fov: 50 }} gl={{ alpha: true }} className="w-full h-full"><ambientLight intensity={0.8} /><spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} /><Environment preset="city" /><Suspense fallback={null}><Center><group scale={2.5} rotation={[0.2, 0, 0]}>{renderARModel()}</group></Center></Suspense><OrbitControls enablePan={true} enableZoom={true} enableRotate={true} /></Canvas><div className="absolute bottom-12 w-full flex flex-col items-center gap-3 pointer-events-auto"><Button onClick={() => navigate(`/result/${detectedId}`)} className="bg-white text-black hover:bg-gray-100 shadow-xl rounded-full px-8 py-6 text-lg font-bold flex items-center gap-2">View Full Details <ArrowRight className="w-5 h-5" /></Button></div></div>}
                 <button onClick={() => setShowCamera(false)} className="absolute top-4 right-4 z-50 bg-black/50 p-3 rounded-full text-white hover:bg-black/80"><X size={24} /></button>
             </div>
         ) : (
             <>
-                <div className="text-center max-w-4xl flex-shrink-0 mb-8 mt-4">
-                    <h1 className="text-4xl md:text-5xl font-serif font-bold mb-3 tracking-wide text-foreground">CultureVerse Lens</h1>
-                    <p className="text-base md:text-lg text-muted-foreground font-light tracking-wide">AI + AR platform that brings local crafts and traditions to life.</p>
+                <div className="text-center max-w-4xl flex-shrink-0 mb-12 mt-8 animate-in slide-in-from-top-10 fade-in duration-700">
+                    <h1 className="text-6xl md:text-8xl font-traditional font-bold mb-6 tracking-tight text-foreground">CultureVerse Lens</h1>
+                    <p className="text-lg md:text-xl text-muted-foreground font-light tracking-wide max-w-2xl mx-auto">Discover <span className="text-primary font-medium font-traditional italic text-2xl">India's Heritage</span> through the lens of AI.</p>
                 </div>
 
-                <div className="w-full max-w-xl flex-shrink-0 mb-12 relative z-10">
-                    <div className="w-full rounded-2xl p-8 backdrop-blur-lg bg-card/50 border border-border shadow-xl transition-all">
-                        {!previewUrl && <h2 className="text-2xl font-serif font-semibold mb-6 text-center">Upload or Scan</h2>}
-
-                        {previewUrl ? (
-                            <div className="w-full flex flex-col items-center">
-                                <div className="mb-6 relative rounded-xl overflow-hidden border-2 border-border bg-muted h-64 w-full flex items-center justify-center group">
-                                    <img src={previewUrl} alt="Selected" className="w-full h-full object-contain" />
-                                    <Button size="sm" variant="destructive" className="absolute bottom-2" onClick={clearSelection} disabled={isAnalyzing}><X className="w-4 h-4 mr-1" /> Remove</Button>
+                <div className="w-full max-w-3xl flex-shrink-0 mb-16 relative z-10">
+                    <div className="w-full p-1">
+                        {!previewUrl && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-6">
+                                <div onClick={handleUploadClick} className="relative overflow-hidden border border-border/50 rounded-2xl p-8 h-72 bg-white/40 dark:bg-stone-900/40 backdrop-blur-xl flex flex-col items-center justify-center transition-all duration-300 ease-out hover:scale-[1.02] hover:border-primary/50 hover:shadow-[0_0_30px_-10px_rgba(245,158,11,0.3)] cursor-pointer group">
+                                    <div className="w-20 h-20 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300"><ImageIcon className="w-10 h-10 text-primary" /></div>
+                                    <p className="text-2xl font-traditional text-foreground group-hover:text-primary transition-colors">Upload Image</p>
+                                    <p className="text-sm text-muted-foreground mt-2">Supports JPG, PNG</p>
                                 </div>
-                                <div className="space-y-3 w-full">
-                                    <Button className="w-full font-semibold py-3 text-base rounded-xl" size="lg" disabled={isAnalyzing} onClick={handleIdentifyUpload}>
-                                        {isAnalyzing ? (<div className="flex items-center gap-2"><Sparkles className="w-4 h-4 animate-spin" /><span>Analyzing...</span></div>) : "Identify Craft"}
-                                    </Button>
-                                    <Button variant="ghost" onClick={clearSelection} className="w-full"><Repeat className="w-3 h-3 mr-1" /> Cancel</Button>
+                                <div onClick={() => setShowCamera(true)} className="relative overflow-hidden border border-border/50 rounded-2xl p-8 h-72 bg-white/40 dark:bg-stone-900/40 backdrop-blur-xl flex flex-col items-center justify-center transition-all duration-300 ease-out hover:scale-[1.02] hover:border-primary/50 hover:shadow-[0_0_30px_-10px_rgba(245,158,11,0.3)] cursor-pointer group">
+                                    <div className="w-20 h-20 bg-primary/10 dark:bg-primary/20 rounded-full flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300"><Camera className="w-10 h-10 text-primary" /></div>
+                                    <p className="text-2xl font-traditional text-foreground group-hover:text-primary transition-colors">Use Camera</p>
+                                    <p className="text-sm text-muted-foreground mt-2">Real-time AR Scan</p>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-2 gap-4 mb-6">
-                                <div onClick={handleUploadClick} className="border-2 border-dashed border-border rounded-xl p-4 bg-muted/50 flex flex-col items-center justify-center h-48 transition-all hover:border-primary/50 cursor-pointer group hover:bg-muted">
-                                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110"><ImageIcon className="w-6 h-6 text-primary" /></div>
-                                    <p className="text-sm font-medium">Upload Image</p>
-                                </div>
-                                <div onClick={() => setShowCamera(true)} className="border-2 border-dashed border-border rounded-xl p-4 bg-muted/50 flex flex-col items-center justify-center h-48 transition-all hover:border-primary/50 cursor-pointer group hover:bg-muted">
-                                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-3 group-hover:scale-110"><Camera className="w-6 h-6 text-primary" /></div>
-                                    <p className="text-sm font-medium">Use Camera</p>
+                        )}
+
+                        {previewUrl && (
+                            <div className="w-full bg-card/50 backdrop-blur-md border border-border rounded-2xl p-6 animate-in zoom-in-95 duration-300">
+                                <div className="flex flex-col items-center">
+                                    <div className="mb-6 relative rounded-xl overflow-hidden border-2 border-border bg-muted h-64 w-full flex items-center justify-center group shadow-inner">
+                                        <img src={previewUrl} alt="Selected" className="w-full h-full object-contain" />
+                                        <Button size="sm" variant="destructive" className="absolute bottom-2 shadow-lg" onClick={clearSelection} disabled={isAnalyzing}><X className="w-4 h-4 mr-1" /> Remove</Button>
+                                    </div>
+                                    <div className="space-y-3 w-full max-w-sm">
+                                        <Button className="w-full font-bold py-6 text-lg rounded-xl shadow-lg hover:shadow-amber-500/20 transition-all font-traditional" size="lg" disabled={isAnalyzing} onClick={handleIdentifyUpload}>
+                                            {isAnalyzing ? (<div className="flex items-center gap-2"><Sparkles className="w-5 h-5 animate-spin" /><span>{analysisStatus}</span></div>) : "Identify Craft"}
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
                 
-                {!previewUrl && (
-                    <div className="w-full flex-shrink-0 mb-16 relative z-0">
-                        <IndiaCultureMap />
-                    </div>
-                )}
+                {!previewUrl && <div className="w-full flex-shrink-0 mb-16 relative z-0"><IndiaCultureMap /></div>}
             </>
         )}
       </div>
