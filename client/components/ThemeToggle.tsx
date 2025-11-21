@@ -1,45 +1,20 @@
-import { useEffect, useState } from "react";
-import { Moon, Sun } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Moon, Sun } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { useTheme } from "./ThemeProvider"
 
 export function ThemeToggle() {
-  // check system preference or local storage on load
-  const [isDark, setIsDark] = useState(() => {
-    if (typeof window !== "undefined") {
-      return (
-        localStorage.getItem("theme") === "dark" ||
-        (!("theme" in localStorage) &&
-          window.matchMedia("(prefers-color-scheme: dark)").matches)
-      );
-    }
-    return true; // Default to dark for your app's vibe
-  });
-
-  useEffect(() => {
-    const root = window.document.documentElement;
-    if (isDark) {
-      root.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      root.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-  }, [isDark]);
+  const { theme, setTheme } = useTheme()
 
   return (
     <Button
-      variant="ghost"
+      variant="outline"
       size="icon"
-      onClick={() => setIsDark(!isDark)}
-      className="rounded-full w-9 h-9 bg-secondary/20 hover:bg-secondary/40 transition-colors"
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      className="rounded-full bg-background/50 backdrop-blur-md border-border hover:bg-muted transition-all"
     >
-      {isDark ? (
-        <Moon className="h-4 w-4 text-yellow-300 transition-all" />
-      ) : (
-        <Sun className="h-4 w-4 text-amber-500 transition-all" />
-      )}
+      <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-amber-600" />
+      <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-stone-100" />
       <span className="sr-only">Toggle theme</span>
     </Button>
-  );
+  )
 }
