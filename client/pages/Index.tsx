@@ -154,7 +154,7 @@ export default function Index() {
       <header className="flex items-center justify-between px-8 py-4 border-b border-border/40 flex-shrink-0 bg-background/50 backdrop-blur-md z-50 relative">
         <div className="text-xl font-traditional font-bold tracking-wide flex items-center gap-2 text-foreground">CultureVerse Lens</div>
         <nav className="flex items-center gap-6 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Demo</Link>
+          
           <Link to="/archive" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Archive</Link>
           <LanguageSwitcherNLP />
           <ThemeToggle />
@@ -166,7 +166,7 @@ export default function Index() {
             <div className="relative w-full h-full bg-black overflow-hidden">
                 <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "environment" }} style={{ width: "100%", height: "100%", objectFit: "cover", position: "absolute", top: 0, left: 0 }} />
                 {!detectedId && <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none"><div className="mt-4 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2"><Loader2 className="w-4 h-4 text-amber-500 animate-spin" /><span className="text-white text-xs font-medium">Scanning...</span></div></div>}
-                {detectedId && <div className="absolute inset-0 z-20"><Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 5], fov: 50 }} gl={{ alpha: true }} className="w-full h-full"><ambientLight intensity={0.8} /><spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} /><Environment preset="city" /><Suspense fallback={null}><Center><group scale={2.5} rotation={[0.2, 0, 0]}>{renderARModel()}</group></Center></Suspense><OrbitControls enablePan={true} enableZoom={true} enableRotate={true} /></Canvas><div className="absolute bottom-12 w-full flex flex-col items-center gap-3 pointer-events-auto"><Button onClick={() => navigate(`/result/${detectedId}`)} className="bg-white text-black hover:bg-gray-100 shadow-xl rounded-full px-8 py-6 text-lg font-bold flex items-center gap-2">View Full Details <ArrowRight className="w-5 h-5" /></Button></div></div>}
+                {detectedId && <div className="absolute inset-0 z-20"><Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 5], fov: 50 }} gl={{ alpha: true }} className="w-full h-full"><ambientLight intensity={0.8} /><spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} /><Environment preset="city" /><Suspense fallback={null}><Center><group scale={0.6} rotation={[0.2, 0, 0]}>{renderARModel()}</group></Center></Suspense><OrbitControls enablePan={true} enableZoom={true} enableRotate={true} /></Canvas><div className="absolute bottom-12 w-full flex flex-col items-center gap-3 pointer-events-auto"><Button onClick={() => navigate(`/result/${detectedId}`)} className="bg-white text-black hover:bg-gray-100 shadow-xl rounded-full px-8 py-6 text-lg font-bold flex items-center gap-2">View Full Details <ArrowRight className="w-5 h-5" /></Button></div></div>}
                 <button onClick={() => setShowCamera(false)} className="absolute top-4 right-4 z-50 bg-black/50 p-3 rounded-full text-white hover:bg-black/80"><X size={24} /></button>
             </div>
         ) : (

@@ -85,7 +85,7 @@ const ChannapatnaMaker = () => {
              {/* FIX: White Button for Restart */}
              <button 
                onClick={() => setStep(0)} 
-               className="px-6 py-3 rounded-xl bg-white text-white font-bold text-sm hover:bg-gray-200 transition-all"
+               className="px-6 py-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-200 transition-all"
              >
                Restart
              </button>
