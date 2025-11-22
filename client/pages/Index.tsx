@@ -168,7 +168,7 @@ export default function Index() {
       <header className="flex items-center justify-between px-8 py-4 border-b border-border/40 flex-shrink-0 bg-background/50 backdrop-blur-md z-50 relative">
         <div className="text-xl font-traditional font-bold tracking-wide flex items-center gap-2 text-foreground">CultureVerse Lens</div>
         <nav className="flex items-center gap-6 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Demo</Link>
+          
           <Link to="/archive" className="hover:text-primary transition-colors font-medium uppercase tracking-wider">Archive</Link>
           <LanguageSwitcherNLP />
           <ThemeToggle />
